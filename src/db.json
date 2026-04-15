@@ -1,0 +1,25 @@
+{
+  "sensorData": {
+    "device1": {
+      "temperature": 30,
+      "gas": 120,
+      "motion": true,
+      "timestamp": 1710000000
+    }
+  },
+  "alerts": {
+    "alert1": {
+      "type": "gas",
+      "value": 300,
+      "message": "Gas Leak Detected",
+      "timestamp": 1710000000
+    }
+  },
+  "users": {
+    "user1": {
+      "name": "Siva",
+      "email": "test@gmail.com",
+      "role": "admin"
+    }
+  }
+}

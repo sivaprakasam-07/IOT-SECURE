@@ -1,6 +1,8 @@
 import { ref, set } from "firebase/database";
 import { db } from "./firebase";
 
+let simulationIntervalId = null;
+
 const generateRandomData = () => {
     return {
         temperature: Math.floor(Math.random() * 50),
@@ -11,8 +13,21 @@ const generateRandomData = () => {
 };
 
 export const startSimulation = () => {
-    setInterval(() => {
+    if (simulationIntervalId) {
+        clearInterval(simulationIntervalId);
+    }
+
+    simulationIntervalId = setInterval(() => {
         const data = generateRandomData();
         set(ref(db, "sensorData/device1"), data);
     }, 3000);
+
+    return simulationIntervalId;
+};
+
+export const stopSimulation = () => {
+    if (simulationIntervalId) {
+        clearInterval(simulationIntervalId);
+        simulationIntervalId = null;
+    }
 };

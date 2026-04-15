@@ -9,7 +9,7 @@ import { useAuth } from "../../context/AuthContext";
 import { auth } from "../../services/firebase";
 import { checkForAlerts } from "../../services/checkAlerts";
 import { listenToSensorData } from "../../services/sensorService";
-import { startSimulation } from "../../services/simulator";
+import { startSimulation, stopSimulation } from "../../services/simulator";
 import { showToast } from "../../utils/toast";
 
 const MAX_READINGS = 20;
@@ -74,6 +74,7 @@ const Dashboard = () => {
 
         return () => {
             unsubscribe();
+            stopSimulation();
         };
     }, []);
 

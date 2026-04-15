@@ -1,10 +1,9 @@
-import { ref, onValue } from "firebase/database";
+import { off, onValue, ref } from "firebase/database";
 import { db } from "./firebase";
 
 export const listenToAlerts = (callback) => {
   const alertsRef = ref(db, "alerts");
-
-  onValue(alertsRef, (snapshot) => {
+  const handleValue = (snapshot) => {
     const data = snapshot.val();
     if (data) {
       const alertsArray = Object.keys(data).map((key) => ({
@@ -13,5 +12,9 @@ export const listenToAlerts = (callback) => {
       }));
       callback(alertsArray.reverse());
     }
-  });
+  };
+
+  onValue(alertsRef, handleValue);
+
+  return () => off(alertsRef, "value", handleValue);
 };

@@ -1,4 +1,4 @@
-import { onValue, ref } from "firebase/database";
+import { off, onValue, ref } from "firebase/database";
 import { db } from "./firebase";
 
 const SENSOR_HISTORY_PATHS = ["sensorHistory", "sensorData/history", "sensorLogs"];
@@ -121,24 +121,30 @@ export const listenToSystemLogs = (callback) => {
     const historyByPath = {};
     let liveSensorLogs = [];
     let lastLiveSignature = "";
+    const alertsRef = ref(db, "alerts");
+    const historyRefs = SENSOR_HISTORY_PATHS.map((path) => ({ path, ref: ref(db, path) }));
+    const liveSensorRef = ref(db, "sensorData/device1");
 
     const emit = () => {
         callback(mergeLogs([alertsLogs, Object.values(historyByPath).flat(), liveSensorLogs]));
     };
 
-    const unsubscribeAlerts = onValue(ref(db, "alerts"), (snapshot) => {
+    const handleAlertsValue = (snapshot) => {
         alertsLogs = normalizeAlertLogs(snapshot.val());
         emit();
-    });
+    };
 
-    const unsubscribeHistoryListeners = SENSOR_HISTORY_PATHS.map((path) =>
-        onValue(ref(db, path), (snapshot) => {
+    const handleHistoryValues = historyRefs.map(({ path, ref: historyRef }) => {
+        const handleHistoryValue = (snapshot) => {
             historyByPath[path] = normalizeSensorHistoryLogs(snapshot.val(), path);
             emit();
-        })
-    );
+        };
 
-    const unsubscribeLiveSensor = onValue(ref(db, "sensorData/device1"), (snapshot) => {
+        onValue(historyRef, handleHistoryValue);
+        return { historyRef, handleHistoryValue };
+    });
+
+    const handleLiveSensorValue = (snapshot) => {
         const value = snapshot.val();
         if (!value) {
             return;
@@ -160,11 +166,19 @@ export const listenToSystemLogs = (callback) => {
         lastLiveSignature = signature;
         liveSensorLogs = [...liveLogs, ...liveSensorLogs].slice(0, MAX_LIVE_SENSOR_LOGS);
         emit();
+    };
+
+    onValue(alertsRef, handleAlertsValue);
+    handleHistoryValues.forEach(({ historyRef, handleHistoryValue }) => {
+        onValue(historyRef, handleHistoryValue);
     });
+    onValue(liveSensorRef, handleLiveSensorValue);
 
     return () => {
-        unsubscribeAlerts();
-        unsubscribeLiveSensor();
-        unsubscribeHistoryListeners.forEach((unsubscribe) => unsubscribe());
+        off(alertsRef, "value", handleAlertsValue);
+        off(liveSensorRef, "value", handleLiveSensorValue);
+        handleHistoryValues.forEach(({ historyRef, handleHistoryValue }) => {
+            off(historyRef, "value", handleHistoryValue);
+        });
     };
 };

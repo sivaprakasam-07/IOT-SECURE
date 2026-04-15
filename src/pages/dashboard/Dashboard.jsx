@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import Sidebar from "../../components/Sidebar";
 import Navbar from "../../components/Navbar";
 import StatsSection from "../../components/StatsSection";
+import LineChartComponent from "../../components/charts/LineChartComponent";
 import { useAuth } from "../../context/AuthContext";
 import { auth } from "../../services/firebase";
 import { checkForAlerts } from "../../services/checkAlerts";
@@ -11,12 +12,28 @@ import { listenToSensorData } from "../../services/sensorService";
 import { startSimulation } from "../../services/simulator";
 import { showToast } from "../../utils/toast";
 
+const MAX_READINGS = 20;
+
+const toNumber = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+};
+
+const formatTime = () =>
+    new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false
+    });
+
 const Dashboard = () => {
     const [sensorData, setSensorData] = useState({
         temperature: "--",
         gas: "--",
         motion: false
     });
+    const [readings, setReadings] = useState([]);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const navigate = useNavigate();
     const { role } = useAuth();
@@ -28,12 +45,36 @@ const Dashboard = () => {
     };
 
     useEffect(() => {
-        listenToSensorData((data) => {
+        const unsubscribe = listenToSensorData((data) => {
             setSensorData(data);
             checkForAlerts(data);
+
+            const temperature = toNumber(data.temperature);
+            const gas = toNumber(data.gas);
+
+            if (temperature === null && gas === null) {
+                return;
+            }
+
+            setReadings((previous) => {
+                const next = [
+                    ...previous,
+                    {
+                        time: formatTime(),
+                        temperature,
+                        gas
+                    }
+                ];
+
+                return next.slice(-MAX_READINGS);
+            });
         });
 
         startSimulation();
+
+        return () => {
+            unsubscribe();
+        };
     }, []);
 
     return (
@@ -60,6 +101,23 @@ const Dashboard = () => {
                     </section>
 
                     <StatsSection sensorData={sensorData} />
+
+                    <section className="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-2">
+                        <LineChartComponent
+                            title="Temperature Trend"
+                            data={readings}
+                            dataKey="temperature"
+                            stroke="#ef4444"
+                            yUnit="°C"
+                        />
+                        <LineChartComponent
+                            title="Gas Level Trend"
+                            data={readings}
+                            dataKey="gas"
+                            stroke="#38bdf8"
+                            yUnit=" ppm"
+                        />
+                    </section>
 
                     <section className="mt-6 rounded-2xl border border-gray-700/60 bg-gray-800/60 p-5 shadow-lg">
                         <p className="text-sm text-gray-300">

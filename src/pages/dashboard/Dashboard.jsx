@@ -9,7 +9,6 @@ import { useAuth } from "../../context/AuthContext";
 import { auth } from "../../services/firebase";
 import { checkForAlerts } from "../../services/checkAlerts";
 import { listenToSensorData } from "../../services/sensorService";
-import { startSimulation, stopSimulation } from "../../services/simulator";
 import { showToast } from "../../utils/toast";
 
 const MAX_READINGS = 20;
@@ -33,10 +32,17 @@ const Dashboard = () => {
         gas: "--",
         motion: false
     });
+
     const [readings, setReadings] = useState([]);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [deviceStatus, setDeviceStatus] = useState("offline"); // "online" or "offline"
+    const [lastTimestamp, setLastTimestamp] = useState(null);
+    const [lastNotifiedStatus, setLastNotifiedStatus] = useState(null);
+
     const navigate = useNavigate();
     const { role } = useAuth();
+
+    const TIMEOUT_THRESHOLD = 8000; // 8 seconds (5-10 second range)
 
     const handleLogout = async () => {
         await signOut(auth);
@@ -49,16 +55,18 @@ const Dashboard = () => {
             setSensorData(data);
             checkForAlerts(data);
 
+            // Update last timestamp when data is received
+            setLastTimestamp(Date.now());
+            setDeviceStatus("online");
+
             const temperature = toNumber(data.temperature);
             const gas = toNumber(data.gas);
 
-            if (temperature === null && gas === null) {
-                return;
-            }
+            if (temperature === null && gas === null) return;
 
-            setReadings((previous) => {
+            setReadings((prev) => {
                 const next = [
-                    ...previous,
+                    ...prev,
                     {
                         time: formatTime(),
                         temperature,
@@ -70,13 +78,41 @@ const Dashboard = () => {
             });
         });
 
-        startSimulation();
-
         return () => {
-            unsubscribe();
-            stopSimulation();
+            unsubscribe(); // ✅ cleanup Firebase listener
         };
     }, []);
+
+    // Monitor device online/offline status
+    useEffect(() => {
+        const checkDeviceStatus = () => {
+            if (lastTimestamp === null) {
+                setDeviceStatus("offline");
+                return;
+            }
+
+            const timeSinceLastUpdate = Date.now() - lastTimestamp;
+            const isOnline = timeSinceLastUpdate <= TIMEOUT_THRESHOLD;
+            const newStatus = isOnline ? "online" : "offline";
+
+            // Only show toast if status changed
+            if (newStatus !== lastNotifiedStatus) {
+                if (newStatus === "online") {
+                    showToast("success", "Device Online ✅");
+                } else {
+                    showToast("error", "Device Offline ❌");
+                }
+                setLastNotifiedStatus(newStatus);
+            }
+
+            setDeviceStatus(newStatus);
+        };
+
+        // Check device status every 3 seconds
+        const interval = setInterval(checkDeviceStatus, 3000);
+
+        return () => clearInterval(interval); // ✅ cleanup interval
+    }, [lastTimestamp, lastNotifiedStatus]);
 
     return (
         <div className="min-h-screen bg-gray-900 text-white">
@@ -89,13 +125,16 @@ const Dashboard = () => {
             <div className="md:pl-64">
                 <Navbar
                     role={role}
+                    deviceStatus={deviceStatus}
                     onMenuClick={() => setIsSidebarOpen(true)}
                     onLogout={handleLogout}
                 />
 
                 <main className="px-4 py-6 sm:px-6 lg:px-8">
                     <section className="mb-6 rounded-2xl border border-gray-700/60 bg-gray-800/60 p-5 shadow-lg">
-                        <h2 className="text-xl font-semibold text-white">Dashboard Overview</h2>
+                        <h2 className="text-xl font-semibold text-white">
+                            Dashboard Overview
+                        </h2>
                         <p className="mt-2 text-sm text-gray-400">
                             Live telemetry from your IoT environment with instant anomaly detection.
                         </p>

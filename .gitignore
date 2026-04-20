@@ -25,3 +25,15 @@ dist-ssr
 
 #firebase API
 *.firebase.js
+
+# Secret and local environment files
+.env
+.env.*
+.envrc
+.runtimeconfig.json
+functions/.runtimeconfig.json
+*.pem
+*.key
+*.p12
+serviceAccountKey.json
+firebase-adminsdk-*.json
